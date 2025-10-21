@@ -32,26 +32,32 @@ model Portfolio {
 }
 
 model Transaction {
-  id              Int           @id @default(autoincrement())
+  id              Int            @id @default(autoincrement())
   portfolioId     Int
-  portfolio       Portfolio     @relation(fields: [portfolioId], references: [id])
+  portfolio       Portfolio      @relation(fields: [portfolioId], references: [id])
   type            TransactionType
   assetType       AssetType
-  symbol          String
-  quantity        Float
-  price           Float
+  symbol          String?
+  quantity        Float?
+  price           Float?
+  amount          Float          // Represents the total value/cash impact of the transaction
   transactionDate DateTime
-  fees            Float         @default(0)
-  createdAt       DateTime      @default(now())
-  updatedAt       DateTime      @updatedAt
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
 }
 
 enum TransactionType {
   BUY
   SELL
+  DIVIDEND
+  INTEREST
+  CASH_DEPOSIT
+  CASH_WITHDRAWAL
+  FEES
 }
 
 enum AssetType {
   STOCK
   FOREX
+  CASH
 }
