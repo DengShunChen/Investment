@@ -5,46 +5,66 @@
 import { Router } from 'express';
 import prisma from '../lib/prisma';
 import { calculateHoldings } from '../services/holdingsCalculator';
-import { calculateTWR } from '../services/performanceCalculator';
+import { calculateTWR, calculateRiskMetrics } from '../services/performanceCalculator';
 import { generateReportData } from '../services/reportingService';
 import { generatePdfReport } from '../services/pdfReportGenerator';
 import { calculateDrift, generateRebalancingProposal } from '../services/rebalancingService';
 
 const router = Router();
 
-// ... (other routes)
+// ... (other routes remain the same)
 
 /**
- * GET /api/portfolios/:id/report - Generate data for a client report (JSON or PDF).
- * @name GET/api/portfolios/:id/report
- * @param {string} req.query.format - Optional. If 'pdf', streams a PDF report.
+ * GET /api/portfolios/:id/performance - Get performance and risk metrics for a portfolio.
  */
-router.get('/:id/report', async (req, res) => {
+router.get('/:id/performance', async (req, res) => {
     try {
         const { id } = req.params;
-        const { startDate, endDate, format } = req.query;
+        const { startDate, endDate } = req.query;
 
         if (!startDate || !endDate) {
             return res.status(400).json({ error: 'startDate and endDate query parameters are required.' });
         }
 
-        const reportData = await generateReportData(parseInt(id), new Date(startDate as string), new Date(endDate as string));
+        const sDate = new Date(startDate as string);
+        const eDate = new Date(endDate as string);
 
-        if (format === 'pdf') {
-            res.setHeader('Content-Type', 'application/pdf');
-            res.setHeader('Content-Disposition', `attachment; filename=report-${id}-${endDate}.pdf`);
-            generatePdfReport(reportData, res);
-        } else {
-            res.json(reportData);
+        const portfolioTWR = await calculateTWR(parseInt(id), sDate, eDate);
+        const riskMetrics = await calculateRiskMetrics(parseInt(id), sDate, eDate);
+
+        // --- Benchmark Performance Calculation ---
+        const portfolio = await prisma.portfolio.findUnique({ where: { id: parseInt(id) } });
+        let benchmarkPerformance = null;
+        if (portfolio?.benchmarkId) {
+            const benchmarkHistory = await prisma.benchmarkPriceHistory.findMany({
+                where: {
+                    benchmarkId: portfolio.benchmarkId,
+                    date: { in: [sDate, eDate] },
+                },
+                orderBy: { date: 'asc' },
+            });
+
+            if (benchmarkHistory.length === 2) {
+                const startPrice = benchmarkHistory[0].price;
+                const endPrice = benchmarkHistory[1].price;
+                benchmarkPerformance = ((endPrice - startPrice) / startPrice) * 100;
+            }
         }
+
+        res.json({
+            portfolioTWR,
+            benchmarkPerformance,
+            ...riskMetrics,
+        });
+
     } catch (error) {
-        res.status(500).json({ error: `Failed to generate report data: ${error.message}` });
+        console.error(error);
+        res.status(500).json({ error: `Failed to calculate performance: ${error.message}` });
     }
 });
 
 
-// --- Other Routes (unchanged) ---
-
+// --- All other routes below this line are unchanged ---
 router.get('/', async (req, res) => {
     try {
       const portfolios = await prisma.portfolio.findMany({ include: { benchmark: true, modelPortfolio: true } });
@@ -130,42 +150,26 @@ router.get('/', async (req, res) => {
       }
   });
 
-  router.get('/:id/performance', async (req, res) => {
+  router.get('/:id/report', async (req, res) => {
       try {
           const { id } = req.params;
-          const { startDate, endDate } = req.query;
+          const { startDate, endDate, format } = req.query;
 
           if (!startDate || !endDate) {
               return res.status(400).json({ error: 'startDate and endDate query parameters are required.' });
           }
 
-          const portfolioTWR = await calculateTWR(parseInt(id), new Date(startDate as string), new Date(endDate as string));
+          const reportData = await generateReportData(parseInt(id), new Date(startDate as string), new Date(endDate as string));
 
-          const portfolio = await prisma.portfolio.findUnique({ where: { id: parseInt(id) } });
-          let benchmarkPerformance = null;
-          if (portfolio?.benchmarkId) {
-              const benchmarkHistory = await prisma.benchmarkPriceHistory.findMany({
-                  where: {
-                      benchmarkId: portfolio.benchmarkId,
-                      date: { in: [new Date(startDate as string), new Date(endDate as string)] },
-                  },
-                  orderBy: { date: 'asc' },
-              });
-
-              if (benchmarkHistory.length === 2) {
-                  const startPrice = benchmarkHistory[0].price;
-                  const endPrice = benchmarkHistory[1].price;
-                  benchmarkPerformance = ((endPrice - startPrice) / startPrice) * 100;
-              }
+          if (format === 'pdf') {
+              res.setHeader('Content-Type', 'application/pdf');
+              res.setHeader('Content-Disposition', `attachment; filename=report-${id}-${endDate}.pdf`);
+              generatePdfReport(reportData, res);
+          } else {
+              res.json(reportData);
           }
-
-          res.json({
-              portfolioTWR,
-              benchmarkPerformance,
-          });
-
       } catch (error) {
-          res.status(500).json({ error: 'Failed to calculate performance.' });
+          res.status(500).json({ error: `Failed to generate report data: ${error.message}` });
       }
   });
 

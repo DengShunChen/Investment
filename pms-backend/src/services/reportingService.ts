@@ -4,32 +4,29 @@
  */
 import prisma from '../lib/prisma';
 import { calculateHoldings } from './holdingsCalculator';
-import { calculateTWR } from './performanceCalculator';
+import { calculateTWR, calculateRiskMetrics } from './performanceCalculator';
 
 /**
  * @interface ReportData
  * @description Defines the structure of the data object returned for a client report.
  */
 export interface ReportData {
-  portfolio: any; // Basic portfolio details
-  holdings: any; // Portfolio holdings (assets and cash)
+  portfolio: any;
+  holdings: any;
   performance: {
     portfolioTWR: number;
     benchmarkPerformance: number | null;
+    volatility: number;
+    sharpeRatio: number;
+    maxDrawdown: number;
   };
-  transactions: any[]; // Transactions within the reporting period
+  transactions: any[];
 }
 
 /**
  * Aggregates all necessary data for a comprehensive client report.
- * @param {number} portfolioId - The ID of the portfolio to generate the report for.
- * @param {Date} startDate - The start date of the reporting period.
- * @param {Date} endDate - The end date of the reporting period.
- * @returns {Promise<ReportData>} A promise that resolves to the aggregated report data.
- * @throws {Error} Throws an error if any of the data fetching steps fail.
  */
 export async function generateReportData(portfolioId: number, startDate: Date, endDate: Date): Promise<ReportData> {
-  // 1. Get Portfolio Details (including benchmark)
   const portfolio = await prisma.portfolio.findUnique({
     where: { id: portfolioId },
     include: { client: true, benchmark: true },
@@ -39,11 +36,10 @@ export async function generateReportData(portfolioId: number, startDate: Date, e
     throw new Error('Portfolio not found');
   }
 
-  // 2. Get Holdings at the end of the period
   const holdings = await calculateHoldings(portfolioId, endDate);
-
-  // 3. Calculate Performance (TWR and Benchmark)
   const portfolioTWR = await calculateTWR(portfolioId, startDate, endDate);
+  const riskMetrics = await calculateRiskMetrics(portfolioId, startDate, endDate);
+
   let benchmarkPerformance = null;
   if (portfolio.benchmarkId) {
     const benchmarkHistory = await prisma.benchmarkPriceHistory.findMany({
@@ -60,14 +56,10 @@ export async function generateReportData(portfolioId: number, startDate: Date, e
     }
   }
 
-  // 4. Get Transactions for the period
   const transactions = await prisma.transaction.findMany({
     where: {
       portfolioId,
-      transactionDate: {
-        gte: startDate,
-        lte: endDate,
-      },
+      transactionDate: { gte: startDate, lte: endDate },
     },
     orderBy: { transactionDate: 'desc' },
   });
@@ -78,6 +70,7 @@ export async function generateReportData(portfolioId: number, startDate: Date, e
     performance: {
       portfolioTWR,
       benchmarkPerformance,
+      ...riskMetrics,
     },
     transactions,
   };
