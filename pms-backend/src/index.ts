@@ -1,3 +1,8 @@
+/**
+ * @file This file is the main entry point for the Portfolio Management System (PMS) API.
+ * It sets up the Express server, configures middleware, and defines the API routes.
+ * @module index
+ */
 import express from 'express';
 import clientRoutes from './routes/clients';
 import portfolioRoutes from './routes/portfolios';
@@ -14,6 +19,15 @@ app.use('/api/clients', clientRoutes);
 app.use('/api/portfolios', portfolioRoutes);
 app.use('/api/transactions', transactionRoutes);
 
+/**
+ * GET / - A simple health check endpoint.
+ * @name GET/
+ * @function
+ * @memberof module:index
+ * @param {object} req - The Express request object.
+ * @param {object} res - The Express response object.
+ * @returns {void}
+ */
 app.get('/', (req, res) => {
   res.send('Portfolio Management System API is running...');
 });
