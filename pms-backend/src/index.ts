@@ -8,7 +8,8 @@ import clientRoutes from './routes/clients';
 import portfolioRoutes from './routes/portfolios';
 import transactionRoutes from './routes/transactions';
 import benchmarkRoutes from './routes/benchmarks';
-import interactionRoutes from './routes/interactions'; // Import interaction routes
+import interactionRoutes from './routes/interactions';
+import modelRoutes from './routes/models'; // Import model routes
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -21,7 +22,8 @@ app.use('/api/clients', clientRoutes);
 app.use('/api/portfolios', portfolioRoutes);
 app.use('/api/transactions', transactionRoutes);
 app.use('/api/benchmarks', benchmarkRoutes);
-app.use('/api/interactions', interactionRoutes); // Add interaction routes
+app.use('/api/interactions', interactionRoutes);
+app.use('/api/models', modelRoutes); // Add model routes
 
 /**
  * GET / - A simple health check endpoint.

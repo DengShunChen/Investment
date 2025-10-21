@@ -9,7 +9,7 @@ import { TransactionType } from '@prisma/client';
 /**
  * --- MOCK MARKET DATA PROVIDER ---
  */
-const mockMarketData = {
+export const mockMarketData = {
   /**
    * Fetches the price for a given symbol on a specific date.
    * @param {string} symbol - The asset symbol.
