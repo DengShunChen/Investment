@@ -7,52 +7,44 @@ import prisma from '../lib/prisma';
 import { calculateHoldings } from '../services/holdingsCalculator';
 import { calculateTWR } from '../services/performanceCalculator';
 import { generateReportData } from '../services/reportingService';
+import { generatePdfReport } from '../services/pdfReportGenerator';
 import { calculateDrift, generateRebalancingProposal } from '../services/rebalancingService';
 
 const router = Router();
 
-// ... (existing GET, POST, PUT routes are unchanged)
+// ... (other routes)
 
 /**
- * GET /api/portfolios/:id/drift - Calculate the portfolio's drift from its model.
- * @name GET/api/portfolios/:id/drift
- * @function
- * @memberof module:routes/portfolios
- * @param {object} req - The Express request object.
- * @param {string} req.params.id - The ID of the portfolio.
- * @param {object} res - The Express response object.
+ * GET /api/portfolios/:id/report - Generate data for a client report (JSON or PDF).
+ * @name GET/api/portfolios/:id/report
+ * @param {string} req.query.format - Optional. If 'pdf', streams a PDF report.
  */
-router.get('/:id/drift', async (req, res) => {
+router.get('/:id/report', async (req, res) => {
     try {
         const { id } = req.params;
-        const driftData = await calculateDrift(parseInt(id));
-        res.json(driftData);
-    } catch (error) {
-        res.status(500).json({ error: `Failed to calculate drift: ${error.message}` });
-    }
-});
+        const { startDate, endDate, format } = req.query;
 
-/**
- * POST /api/portfolios/:id/rebalance-proposal - Generate a rebalancing proposal.
- * @name POST/api/portfolios/:id/rebalance-proposal
- * @function
- * @memberof module:routes/portfolios
- * @param {object} req - The Express request object.
- * @param {string} req.params.id - The ID of the portfolio.
- * @param {object} res - The Express response object.
- */
-router.post('/:id/rebalance-proposal', async (req, res) => {
-    try {
-        const { id } = req.params;
-        const proposal = await generateRebalancingProposal(parseInt(id));
-        res.json(proposal);
+        if (!startDate || !endDate) {
+            return res.status(400).json({ error: 'startDate and endDate query parameters are required.' });
+        }
+
+        const reportData = await generateReportData(parseInt(id), new Date(startDate as string), new Date(endDate as string));
+
+        if (format === 'pdf') {
+            res.setHeader('Content-Type', 'application/pdf');
+            res.setHeader('Content-Disposition', `attachment; filename=report-${id}-${endDate}.pdf`);
+            generatePdfReport(reportData, res);
+        } else {
+            res.json(reportData);
+        }
     } catch (error) {
-        res.status(500).json({ error: `Failed to generate rebalancing proposal: ${error.message}` });
+        res.status(500).json({ error: `Failed to generate report data: ${error.message}` });
     }
 });
 
 
-// --- Existing Routes ---
+// --- Other Routes (unchanged) ---
+
 router.get('/', async (req, res) => {
     try {
       const portfolios = await prisma.portfolio.findMany({ include: { benchmark: true, modelPortfolio: true } });
@@ -177,22 +169,25 @@ router.get('/', async (req, res) => {
       }
   });
 
-  router.get('/:id/report', async (req, res) => {
+  router.get('/:id/drift', async (req, res) => {
       try {
           const { id } = req.params;
-          const { startDate, endDate } = req.query;
-
-          if (!startDate || !endDate) {
-              return res.status(400).json({ error: 'startDate and endDate query parameters are required.' });
-          }
-
-          const reportData = await generateReportData(parseInt(id), new Date(startDate as string), new Date(endDate as string));
-          res.json(reportData);
+          const driftData = await calculateDrift(parseInt(id));
+          res.json(driftData);
       } catch (error) {
-          res.status(500).json({ error: `Failed to generate report data: ${error.message}` });
+          res.status(500).json({ error: `Failed to calculate drift: ${error.message}` });
       }
   });
 
+  router.post('/:id/rebalance-proposal', async (req, res) => {
+      try {
+          const { id } = req.params;
+          const proposal = await generateRebalancingProposal(parseInt(id));
+          res.json(proposal);
+      } catch (error) {
+          res.status(500).json({ error: `Failed to generate rebalancing proposal: ${error.message}` });
+      }
+  });
 
   router.get('/:id', async (req, res) => {
     try {

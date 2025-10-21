@@ -4,7 +4,7 @@
  */
 import prisma from '../lib/prisma';
 import { calculateHoldings } from './holdingsCalculator';
-import { mockMarketData } from './performanceCalculator'; // Assuming mockMarketData is exported
+import { mockMarketData } from './performanceCalculator';
 
 /**
  * @interface AssetAllocation
@@ -12,6 +12,7 @@ import { mockMarketData } from './performanceCalculator'; // Assuming mockMarket
  */
 interface AssetAllocation {
   symbol: string;
+  currentValue: number;
   currentWeight: number;
   targetWeight: number;
   drift: number; // The difference between current and target weight
@@ -28,9 +29,26 @@ interface RebalancingProposal {
   rebalancingTrades: {
     symbol: string;
     action: 'BUY' | 'SELL';
-    amount: number; // The cash amount to buy or sell
+    tradeValue: number; // The cash amount to buy or sell
   }[];
 }
+
+async function calculatePortfolioMarketValue(portfolioId: number): Promise<{ totalMarketValue: number; assetValues: { [symbol: string]: number } }> {
+    const holdings = await calculateHoldings(portfolioId);
+    const today = new Date();
+
+    let totalMarketValue = holdings.cashBalance;
+    const assetValues: { [symbol: string]: number } = {};
+
+    for (const asset of holdings.assets) {
+        const price = await mockMarketData.getPrice(asset.symbol, today);
+        const value = asset.quantity * price;
+        assetValues[asset.symbol] = value;
+        totalMarketValue += value;
+    }
+    return { totalMarketValue, assetValues };
+}
+
 
 /**
  * Calculates the current asset allocation (drift) of a portfolio compared to its model.
@@ -47,17 +65,7 @@ export async function calculateDrift(portfolioId: number): Promise<AssetAllocati
     throw new Error('Portfolio or its assigned model not found.');
   }
 
-  const holdings = await calculateHoldings(portfolioId);
-  const today = new Date();
-
-  let totalMarketValue = holdings.cashBalance;
-  const assetValues: { [symbol: string]: number } = {};
-  for (const asset of holdings.assets) {
-    const price = await mockMarketData.getPrice(asset.symbol, today);
-    const value = asset.quantity * price;
-    assetValues[asset.symbol] = value;
-    totalMarketValue += value;
-  }
+  const { totalMarketValue, assetValues } = await calculatePortfolioMarketValue(portfolioId);
 
   const modelAssets = portfolio.modelPortfolio.assets;
   const driftAnalysis: AssetAllocation[] = [];
@@ -68,6 +76,7 @@ export async function calculateDrift(portfolioId: number): Promise<AssetAllocati
     const targetWeight = modelAsset.targetPercentage;
     driftAnalysis.push({
       symbol: modelAsset.symbol,
+      currentValue,
       currentWeight,
       targetWeight,
       drift: currentWeight - targetWeight,
@@ -84,20 +93,22 @@ export async function calculateDrift(portfolioId: number): Promise<AssetAllocati
  */
 export async function generateRebalancingProposal(portfolioId: number): Promise<RebalancingProposal> {
   const driftAnalysis = await calculateDrift(portfolioId);
+  const { totalMarketValue } = await calculatePortfolioMarketValue(portfolioId);
 
-  // This is a simplified rebalancing logic. A real-world version would be more complex.
   const rebalancingTrades = driftAnalysis.map(asset => {
-    const tradeAmount = asset.drift * -1; // Sell if overweight, buy if underweight
+    const targetValue = totalMarketValue * asset.targetWeight;
+    const tradeValue = targetValue - asset.currentValue;
+
     return {
       symbol: asset.symbol,
-      action: tradeAmount > 0 ? 'BUY' : 'SELL',
-      amount: Math.abs(tradeAmount),
+      action: tradeValue > 0 ? 'BUY' : 'SELL',
+      tradeValue: Math.abs(tradeValue),
     };
-  });
+  }).filter(trade => trade.tradeValue > 0.01); // Filter out negligible trades
 
   return {
     portfolioId,
-    totalMarketValue: 0, // Placeholder
+    totalMarketValue,
     driftAnalysis,
     rebalancingTrades,
   };

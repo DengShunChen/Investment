@@ -10,7 +10,7 @@ import { calculateTWR } from './performanceCalculator';
  * @interface ReportData
  * @description Defines the structure of the data object returned for a client report.
  */
-interface ReportData {
+export interface ReportData {
   portfolio: any; // Basic portfolio details
   holdings: any; // Portfolio holdings (assets and cash)
   performance: {
