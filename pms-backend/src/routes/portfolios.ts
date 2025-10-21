@@ -6,6 +6,7 @@ import { Router } from 'express';
 import prisma from '../lib/prisma';
 import { calculateHoldings } from '../services/holdingsCalculator';
 import { calculateTWR } from '../services/performanceCalculator';
+import { generateReportData } from '../services/reportingService';
 
 const router = Router();
 
@@ -94,17 +95,6 @@ router.get('/:id/holdings', async (req, res) => {
 
 /**
  * GET /api/portfolios/:id/performance - Get performance metrics for a portfolio.
- * @name GET/api/portfolios/:id/performance
- * @function
- * @memberof module:routes/portfolios
- * @param {object} req - The Express request object.
- * @param {object} req.params - The route parameters.
- * @param {string} req.params.id - The ID of the portfolio.
- * @param {object} req.query - The query parameters.
- * @param {string} req.query.startDate - The start date for the calculation (YYYY-MM-DD).
- * @param {string} req.query.endDate - The end date for the calculation (YYYY-MM-DD).
- * @param {object} res - The Express response object.
- * @returns {void}
  */
 router.get('/:id/performance', async (req, res) => {
     try {
@@ -117,16 +107,13 @@ router.get('/:id/performance', async (req, res) => {
 
         const portfolioTWR = await calculateTWR(parseInt(id), new Date(startDate as string), new Date(endDate as string));
 
-        // --- Benchmark Performance Calculation ---
         const portfolio = await prisma.portfolio.findUnique({ where: { id: parseInt(id) } });
         let benchmarkPerformance = null;
         if (portfolio?.benchmarkId) {
             const benchmarkHistory = await prisma.benchmarkPriceHistory.findMany({
                 where: {
                     benchmarkId: portfolio.benchmarkId,
-                    date: {
-                        in: [new Date(startDate as string), new Date(endDate as string)],
-                    },
+                    date: { in: [new Date(startDate as string), new Date(endDate as string)] },
                 },
                 orderBy: { date: 'asc' },
             });
@@ -146,6 +133,37 @@ router.get('/:id/performance', async (req, res) => {
     } catch (error) {
         console.error(error);
         res.status(500).json({ error: 'Failed to calculate performance.' });
+    }
+});
+
+/**
+ * GET /api/portfolios/:id/report - Generate data for a client report.
+ * @name GET/api/portfolios/:id/report
+ * @function
+ * @memberof module:routes/portfolios
+ * @param {object} req - The Express request object.
+ * @param {object} req.params - The route parameters.
+ * @param {string} req.params.id - The ID of the portfolio.
+ * @param {object} req.query - The query parameters.
+ * @param {string} req.query.startDate - The start date for the report (YYYY-MM-DD).
+ * @param {string} req.query.endDate - The end date for the report (YYYY-MM-DD).
+ * @param {object} res - The Express response object.
+ * @returns {void}
+ */
+router.get('/:id/report', async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { startDate, endDate } = req.query;
+
+        if (!startDate || !endDate) {
+            return res.status(400).json({ error: 'startDate and endDate query parameters are required.' });
+        }
+
+        const reportData = await generateReportData(parseInt(id), new Date(startDate as string), new Date(endDate as string));
+        res.json(reportData);
+    } catch (error) {
+        console.error(error);
+        res.status(500).json({ error: `Failed to generate report data: ${error.message}` });
     }
 });
 
