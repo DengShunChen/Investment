@@ -26,6 +26,8 @@ model Portfolio {
   description   String?
   clientId      Int
   client        Client        @relation(fields: [clientId], references: [id])
+  benchmarkId   Int?          // Optional: Link to a benchmark
+  benchmark     Benchmark?    @relation(fields: [benchmarkId], references: [id])
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
   transactions  Transaction[]
@@ -44,6 +46,25 @@ model Transaction {
   transactionDate DateTime
   createdAt       DateTime       @default(now())
   updatedAt       DateTime       @updatedAt
+}
+
+model Benchmark {
+  id          Int                     @id @default(autoincrement())
+  name        String                  @unique
+  description String?
+  portfolios  Portfolio[]
+  priceHistory BenchmarkPriceHistory[]
+}
+
+model BenchmarkPriceHistory {
+  id          Int       @id @default(autoincrement())
+  benchmarkId Int
+  benchmark   Benchmark @relation(fields: [benchmarkId], references: [id])
+  date        DateTime  @db.Date
+  price       Float
+  createdAt   DateTime  @default(now())
+
+  @@unique([benchmarkId, date])
 }
 
 enum TransactionType {

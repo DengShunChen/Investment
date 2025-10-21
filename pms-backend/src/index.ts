@@ -7,6 +7,7 @@ import express from 'express';
 import clientRoutes from './routes/clients';
 import portfolioRoutes from './routes/portfolios';
 import transactionRoutes from './routes/transactions';
+import benchmarkRoutes from './routes/benchmarks'; // Import benchmark routes
 
 const app = express();
 const port = process.env.PORT || 3000;
@@ -18,6 +19,7 @@ app.use(express.json());
 app.use('/api/clients', clientRoutes);
 app.use('/api/portfolios', portfolioRoutes);
 app.use('/api/transactions', transactionRoutes);
+app.use('/api/benchmarks', benchmarkRoutes); // Add benchmark routes
 
 /**
  * GET / - A simple health check endpoint.

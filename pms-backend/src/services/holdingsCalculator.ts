@@ -55,15 +55,19 @@ function calculateNewAverageCost(
 }
 
 /**
- * Calculates the current holdings for a given portfolio based on its entire transaction history.
- * It processes transactions chronologically to determine the final state of each asset and the cash balance.
+ * Calculates the holdings for a portfolio at a specific point in time.
+ * If no date is provided, it calculates the current holdings.
  * @param {number} portfolioId - The unique identifier for the portfolio.
+ * @param {Date} [asOfDate] - Optional date to calculate historical holdings.
  * @returns {Promise<PortfolioHoldings>} A promise that resolves to a PortfolioHoldings object.
  * @throws {Error} Throws an error if the database query fails.
  */
-export async function calculateHoldings(portfolioId: number): Promise<PortfolioHoldings> {
+export async function calculateHoldings(portfolioId: number, asOfDate?: Date): Promise<PortfolioHoldings> {
   const transactions = await prisma.transaction.findMany({
-    where: { portfolioId },
+    where: {
+        portfolioId,
+        transactionDate: asOfDate ? { lte: asOfDate } : undefined,
+     },
     orderBy: { transactionDate: 'asc' }, // Process transactions in chronological order
   });
 
@@ -114,14 +118,11 @@ export async function calculateHoldings(portfolioId: number): Promise<PortfolioH
         }
         break;
 
-      // Cash transactions (DIVIDEND, INTEREST, etc.) are handled by the cashBalance update above.
-      // No changes to asset holdings are needed for these types.
       case TransactionType.DIVIDEND:
       case TransactionType.INTEREST:
       case TransactionType.CASH_DEPOSIT:
       case TransactionType.CASH_WITHDRAWAL:
       case TransactionType.FEES:
-        // These are primarily cash events, already handled.
         break;
     }
   }
