@@ -4,27 +4,16 @@
  */
 import prisma from '../lib/prisma';
 import { calculateHoldings } from './holdingsCalculator';
-import { TransactionType } from '@prisma/client';
+import { marketDataService } from './marketDataService';
+import { TransactionType, AssetType } from '@prisma/client';
 
 const RISK_FREE_RATE = 0.02; // Assume a 2% risk-free rate for Sharpe Ratio calculation
-
-/**
- * --- MOCK MARKET DATA PROVIDER ---
- */
-export const mockMarketData = {
-  getPrice: async (symbol: string, date: Date): Promise<number> => {
-    const day = date.getDate();
-    const month = date.getMonth() + 1;
-    return 100 + (symbol.charCodeAt(0) % 10) + (day * 0.1) - (month * 0.05);
-  },
-};
-// --- END MOCK ---
 
 async function getPortfolioValueOnDate(portfolioId: number, date: Date): Promise<number> {
     const holdings = await calculateHoldings(portfolioId, date);
     let totalValue = holdings.cashBalance;
     for (const asset of holdings.assets) {
-        const price = await mockMarketData.getPrice(asset.symbol, date);
+        const price = await marketDataService.getPrice(asset.symbol, asset.assetType as AssetType, date);
         totalValue += asset.quantity * price;
     }
     return totalValue;
@@ -56,18 +45,15 @@ export async function calculateRiskMetrics(portfolioId: number, startDate: Date,
         return { volatility: 0, sharpeRatio: 0, maxDrawdown: 0 };
     }
 
-    // 1. Volatility (Annualized Standard Deviation)
     const meanReturn = dailyReturns.reduce((a, b) => a + b, 0) / dailyReturns.length;
     const variance = dailyReturns.reduce((acc, ret) => acc + Math.pow(ret - meanReturn, 2), 0) / dailyReturns.length;
     const stdDev = Math.sqrt(variance);
-    const volatility = stdDev * Math.sqrt(252); // Annualize using 252 trading days
+    const volatility = stdDev * Math.sqrt(252);
 
-    // 2. Sharpe Ratio
     const totalReturn = await calculateTWR(portfolioId, startDate, endDate) / 100;
     const annualizedReturn = Math.pow(1 + totalReturn, 252 / dailyReturns.length) - 1;
     const sharpeRatio = volatility > 0 ? (annualizedReturn - RISK_FREE_RATE) / volatility : 0;
 
-    // 3. Maximum Drawdown
     let peak = 1;
     let maxDrawdown = 0;
     const cumulativeReturns = dailyReturns.map(r => peak *= (1 + r));
@@ -82,17 +68,12 @@ export async function calculateRiskMetrics(portfolioId: number, startDate: Date,
     }
 
     return {
-        volatility: volatility * 100, // as percentage
+        volatility: volatility * 100,
         sharpeRatio,
-        maxDrawdown: maxDrawdown * 100, // as percentage
+        maxDrawdown: maxDrawdown * 100,
     };
 }
 
-
-/**
- * Calculates the Time-Weighted Return (TWR) for a portfolio over a specified period.
- * NOTE: This is a simplified TWR calculation for demonstration.
- */
 export async function calculateTWR(portfolioId: number, startDate: Date, endDate: Date): Promise<number> {
     const startValue = await getPortfolioValueOnDate(portfolioId, startDate);
     const endValue = await getPortfolioValueOnDate(portfolioId, endDate);
@@ -108,7 +89,6 @@ export async function calculateTWR(portfolioId: number, startDate: Date, endDate
 
     if (startValue === 0) return 0;
 
-    // Simplified TWR ignoring timing of cash flows within the period
     const twr = (endValue - netCashFlow - startValue) / startValue;
     return twr * 100;
 }

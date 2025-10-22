@@ -4,34 +4,28 @@
  */
 import prisma from '../lib/prisma';
 import { calculateHoldings } from './holdingsCalculator';
-import { mockMarketData } from './performanceCalculator';
+import { marketDataService } from './marketDataService';
+import { AssetType } from '@prisma/client';
 
-/**
- * @interface AssetAllocation
- * @description Represents the allocation of a single asset in a portfolio.
- */
+// ... (interfaces remain the same)
 interface AssetAllocation {
-  symbol: string;
-  currentValue: number;
-  currentWeight: number;
-  targetWeight: number;
-  drift: number; // The difference between current and target weight
-}
-
-/**
- * @interface RebalancingProposal
- * @description Represents a complete rebalancing plan.
- */
-interface RebalancingProposal {
-  portfolioId: number;
-  totalMarketValue: number;
-  driftAnalysis: AssetAllocation[];
-  rebalancingTrades: {
     symbol: string;
-    action: 'BUY' | 'SELL';
-    tradeValue: number; // The cash amount to buy or sell
-  }[];
-}
+    currentValue: number;
+    currentWeight: number;
+    targetWeight: number;
+    drift: number;
+  }
+
+  interface RebalancingProposal {
+    portfolioId: number;
+    totalMarketValue: number;
+    driftAnalysis: AssetAllocation[];
+    rebalancingTrades: {
+      symbol: string;
+      action: 'BUY' | 'SELL';
+      tradeValue: number;
+    }[];
+  }
 
 async function calculatePortfolioMarketValue(portfolioId: number): Promise<{ totalMarketValue: number; assetValues: { [symbol: string]: number } }> {
     const holdings = await calculateHoldings(portfolioId);
@@ -41,7 +35,7 @@ async function calculatePortfolioMarketValue(portfolioId: number): Promise<{ tot
     const assetValues: { [symbol: string]: number } = {};
 
     for (const asset of holdings.assets) {
-        const price = await mockMarketData.getPrice(asset.symbol, today);
+        const price = await marketDataService.getPrice(asset.symbol, asset.assetType as AssetType, today);
         const value = asset.quantity * price;
         assetValues[asset.symbol] = value;
         totalMarketValue += value;
@@ -50,11 +44,6 @@ async function calculatePortfolioMarketValue(portfolioId: number): Promise<{ tot
 }
 
 
-/**
- * Calculates the current asset allocation (drift) of a portfolio compared to its model.
- * @param {number} portfolioId - The ID of the portfolio.
- * @returns {Promise<AssetAllocation[]>} A promise that resolves to an array of asset allocations.
- */
 export async function calculateDrift(portfolioId: number): Promise<AssetAllocation[]> {
   const portfolio = await prisma.portfolio.findUnique({
     where: { id: portfolioId },
@@ -86,11 +75,6 @@ export async function calculateDrift(portfolioId: number): Promise<AssetAllocati
   return driftAnalysis;
 }
 
-/**
- * Generates a rebalancing proposal for a portfolio.
- * @param {number} portfolioId - The ID of the portfolio.
- * @returns {Promise<RebalancingProposal>} A promise that resolves to a rebalancing proposal.
- */
 export async function generateRebalancingProposal(portfolioId: number): Promise<RebalancingProposal> {
   const driftAnalysis = await calculateDrift(portfolioId);
   const { totalMarketValue } = await calculatePortfolioMarketValue(portfolioId);
@@ -104,7 +88,7 @@ export async function generateRebalancingProposal(portfolioId: number): Promise<
       action: tradeValue > 0 ? 'BUY' : 'SELL',
       tradeValue: Math.abs(tradeValue),
     };
-  }).filter(trade => trade.tradeValue > 0.01); // Filter out negligible trades
+  }).filter(trade => trade.tradeValue > 0.01);
 
   return {
     portfolioId,
