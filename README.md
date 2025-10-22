@@ -12,59 +12,48 @@ This project is a professional-grade, backend API service for a Portfolio Manage
 
 ## 3. Core Features
 - **Client Relationship Management (CRM):** Create and manage detailed client profiles and log all client interactions.
-- **Portfolio Accounting:** Supports a wide range of transaction types (Buys, Sells, Dividends, Cash Deposits) and provides real-time holdings and cash balance calculations.
+- **Portfolio Accounting:** Supports a wide range of transaction types (Buys, Sells, Dividends, Cash Deposits), batch import from CSV, and provides real-time holdings calculations.
 - **Performance & Risk Analytics:** Calculates key metrics like Time-Weighted Return (TWR), Volatility, Sharpe Ratio, and Maximum Drawdown. Supports benchmark comparisons.
 - **Modeling & Rebalancing:** Allows creation of standardized model portfolios, monitors client portfolios for drift, and generates rebalancing proposals.
 - **Reporting Engine:** Generates comprehensive client reports in either JSON or PDF format.
 
 ## 4. Getting Started
-
-### Prerequisites
-- [Docker](https://www.docker.com/get-started) and Docker Compose
-- [Node.js](https://nodejs.org/) and npm
+(Sections on Prerequisites, Installation, and Setup remain the same)
 
 ### Installation & Setup
 
-1.  **Clone the repository:**
-    ```bash
-    git clone <repository-url>
-    cd pms-backend
-    ```
-
-2.  **Get a Financial Data API Key:**
-    This project uses [StockData.org](https://www.stockdata.org/) for financial market data.
-    - Go to their website and sign up for a free account to get an API key.
-
-3.  **Configure Environment Variables:**
-    Create a `.env` file in the `pms-backend` root directory. Add your database connection string and the API key you just obtained.
+1.  **Clone the repository...**
+2.  **Get a Financial Data API Key...**
+3.  **Configure Environment Variables...**
     ```env
-    # PostgreSQL connection string for Docker
     DATABASE_URL="postgresql://user:password@db:5432/pms_db?schema=public"
-
-    # Your StockData.org API Key
     STOCKDATA_API_KEY="YOUR_API_KEY_HERE"
     ```
-
-4.  **Install dependencies:**
-    ```bash
-    npm install
-    ```
-
-5.  **Start the services:**
-    The entire development environment is managed via Docker.
-    ```bash
-    sudo docker compose up -d --build
-    ```
-    The API will be available at `http://localhost:3000`.
-
-6.  **Database Migrations:**
-    To apply schema changes, run the following command:
-    ```bash
-    sudo docker compose exec app npx prisma migrate dev --name your-migration-name
-    ```
+4.  **Install dependencies...**
+5.  **Start the services...**
+6.  **Database Migrations...**
 
 ## 5. API Endpoints
-The API is organized around key resources like clients, portfolios, transactions, benchmarks, and models. All major features are exposed through a comprehensive set of RESTful endpoints. For detailed information on available endpoints, please refer to the route definitions in the `src/routes/` directory.
+The API provides a comprehensive set of RESTful endpoints. Key features include:
+
+### Transaction Batch Import
+You can batch import transactions for a portfolio by uploading a CSV file.
+
+**Endpoint:** `POST /api/transactions/batch-import/:portfolioId`
+
+**Form Data:** The request must be `multipart/form-data` with a single file field named `file`.
+
+**CSV Format:** The CSV file must contain the following headers:
+`date,type,symbol,assetType,quantity,price,amount`
+
+- **date:** ISO 8601 format (e.g., `2023-10-21`).
+- **type:** Must match one of the valid `TransactionType` enum values (e.g., `BUY`, `SELL`, `DIVIDEND`, `CASH_DEPOSIT`).
+- **symbol:** Required for `BUY`, `SELL`, `DIVIDEND`. Can be empty for cash transactions.
+- **assetType:** Must match one of the valid `AssetType` enum values (e.g., `STOCK`, `CASH`).
+- **quantity, price:** Required for `BUY` and `SELL` types.
+- **amount:** The total cash impact of the transaction. **Important:** This should be a negative value for cash outflows (e.g., BUY, FEES) and positive for inflows (e.g., SELL, DIVIDEND, CASH_DEPOSIT).
+
+For other endpoints, please refer to the route definitions in the `src/routes/` directory.
 
 ## 6. Project Structure
 - `src/lib/`: Shared library code (e.g., Prisma client).

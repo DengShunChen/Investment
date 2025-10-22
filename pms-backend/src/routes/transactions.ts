@@ -4,21 +4,38 @@
  */
 import { Router } from 'express';
 import prisma from '../lib/prisma';
+import multer from 'multer';
 import { AssetType, TransactionType } from '@prisma/client';
+import { processCsvImport } from '../services/batchImportService';
 
 const router = Router();
+const upload = multer({ storage: multer.memoryStorage() });
 
 /**
- * GET /api/transactions/portfolio/:portfolioId - Get all transactions for a portfolio.
- * @name GET/api/transactions/portfolio/:portfolioId
- * @function
- * @memberof module:routes/transactions
- * @param {object} req - The Express request object.
- * @param {object} req.params - The route parameters.
+ * POST /api/transactions/batch-import/:portfolioId - Batch import transactions from a CSV file.
+ * @name POST/api/transactions/batch-import/:portfolioId
  * @param {string} req.params.portfolioId - The ID of the portfolio.
- * @param {object} res - The Express response object.
- * @returns {void}
+ * @param {object} req.file - The uploaded CSV file.
  */
+router.post('/batch-import/:portfolioId', upload.single('file'), async (req, res) => {
+    try {
+        const { portfolioId } = req.params;
+        if (!req.file) {
+            return res.status(400).json({ error: 'No file uploaded.' });
+        }
+
+        const result = await processCsvImport(req.file.buffer, parseInt(portfolioId));
+        res.status(201).json({ message: `${result.createdCount} transactions imported successfully.` });
+
+    } catch (error) {
+        console.error('Batch import failed:', error);
+        res.status(500).json({ error: `Batch import failed: ${error.message}` });
+    }
+});
+
+
+// --- Existing Routes ---
+
 router.get('/portfolio/:portfolioId', async (req, res) => {
   try {
     const { portfolioId } = req.params;
@@ -32,25 +49,6 @@ router.get('/portfolio/:portfolioId', async (req, res) => {
   }
 });
 
-/**
- * POST /api/transactions - Create a new transaction.
- * This endpoint handles various transaction types, each with its own validation rules.
- * @name POST/api/transactions
- * @function
- * @memberof module:routes/transactions
- * @param {object} req - The Express request object.
- * @param {object} req.body - The request body.
- * @param {number} req.body.portfolioId - The ID of the portfolio.
- * @param {TransactionType} req.body.type - The type of transaction.
- * @param {AssetType} req.body.assetType - The type of asset.
- * @param {string} req.body.transactionDate - The date of the transaction (ISO 8601 format).
- * @param {number} [req.body.amount] - The total cash value of the transaction. Required for non-BUY/SELL types.
- * @param {string} [req.body.symbol] - The asset symbol. Required for BUY, SELL, DIVIDEND.
- * @param {number} [req.body.quantity] - The number of units. Required for BUY, SELL.
- * @param {number} [req.body.price] - The price per unit. Required for BUY, SELL.
- * @param {object} res - The Express response object.
- * @returns {void}
- */
 router.post('/', async (req, res) => {
   try {
     const {
@@ -64,7 +62,6 @@ router.post('/', async (req, res) => {
       transactionDate,
     } = req.body;
 
-    // --- Basic Validation ---
     if (!portfolioId || !type || !assetType || !transactionDate) {
       return res.status(400).json({ error: 'Missing required fields: portfolioId, type, assetType, transactionDate' });
     }
@@ -79,7 +76,6 @@ router.post('/', async (req, res) => {
       transactionDate: new Date(transactionDate),
     };
 
-    // --- Type-specific Validation and Data Construction ---
     switch (type) {
       case TransactionType.BUY:
       case TransactionType.SELL:
@@ -119,7 +115,6 @@ router.post('/', async (req, res) => {
         if (assetType !== AssetType.CASH) {
             return res.status(400).json({ error: 'AssetType must be CASH for this transaction type.' });
         }
-        // Ensure amount is negative for withdrawals and fees
         transactionData.amount = -Math.abs(amount);
         break;
 
@@ -132,7 +127,7 @@ router.post('/', async (req, res) => {
     });
     res.status(201).json(newTransaction);
   } catch (error) {
-    console.error(error); // Log the actual error for debugging
+    console.error(error);
     res.status(400).json({ error: 'Failed to create transaction' });
   }
 });

@@ -50,7 +50,7 @@ export async function calculateRiskMetrics(portfolioId: number, startDate: Date,
     const stdDev = Math.sqrt(variance);
     const volatility = stdDev * Math.sqrt(252);
 
-    const totalReturn = await calculateTWR(portfolioId, startDate, endDate) / 100;
+    const totalReturn = (await calculateTWR(portfolioId, startDate, endDate)) / 100;
     const annualizedReturn = Math.pow(1 + totalReturn, 252 / dailyReturns.length) - 1;
     const sharpeRatio = volatility > 0 ? (annualizedReturn - RISK_FREE_RATE) / volatility : 0;
 
@@ -74,21 +74,51 @@ export async function calculateRiskMetrics(portfolioId: number, startDate: Date,
     };
 }
 
+/**
+ * Calculates the true Time-Weighted Return (TWR) for a portfolio.
+ * This method neutralizes the impact of cash flows by calculating and chain-linking
+ * the returns for each sub-period between cash flows.
+ */
 export async function calculateTWR(portfolioId: number, startDate: Date, endDate: Date): Promise<number> {
-    const startValue = await getPortfolioValueOnDate(portfolioId, startDate);
-    const endValue = await getPortfolioValueOnDate(portfolioId, endDate);
-
-    const transactions = await prisma.transaction.findMany({
+    const cashFlowTransactions = await prisma.transaction.findMany({
         where: {
             portfolioId,
             transactionDate: { gt: startDate, lte: endDate },
             type: { in: [TransactionType.CASH_DEPOSIT, TransactionType.CASH_WITHDRAWAL] }
-        }
+        },
+        orderBy: { transactionDate: 'asc' }
     });
-    const netCashFlow = transactions.reduce((acc, t) => acc + t.amount, 0);
 
-    if (startValue === 0) return 0;
+    const periodDates = [startDate, ...cashFlowTransactions.map(t => t.transactionDate), endDate];
+    const uniqueDates = [...new Set(periodDates.map(d => d.toISOString()))].map(d => new Date(d));
+    uniqueDates.sort((a, b) => a.getTime() - b.getTime());
 
-    const twr = (endValue - netCashFlow - startValue) / startValue;
-    return twr * 100;
+    let cumulativeReturnFactor = 1.0;
+
+    for (let i = 0; i < uniqueDates.length - 1; i++) {
+        const periodStart = uniqueDates[i];
+        const periodEnd = uniqueDates[i + 1];
+
+        const startValue = await getPortfolioValueOnDate(portfolioId, periodStart);
+
+        // Find cash flows that occurred AT the end of the previous period or start of this one
+        const cashFlowsAtStart = cashFlowTransactions.filter(
+            t => t.transactionDate.getTime() === periodStart.getTime()
+        );
+        const startCashFlow = cashFlowsAtStart.reduce((acc, t) => acc + t.amount, 0);
+
+        const marketValueBeforeCashFlows = startValue - startCashFlow;
+
+        if (marketValueBeforeCashFlows === 0) {
+            continue; // Skip periods with zero starting value
+        }
+
+        const endValue = await getPortfolioValueOnDate(portfolioId, periodEnd);
+
+        const periodReturn = (endValue / marketValueBeforeCashFlows) - 1;
+        cumulativeReturnFactor *= (1 + periodReturn);
+    }
+
+    const twr = (cumulativeReturnFactor - 1) * 100;
+    return twr;
 }
