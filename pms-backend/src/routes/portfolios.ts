@@ -59,7 +59,11 @@ router.get('/:id/performance', async (req, res) => {
 
     } catch (error) {
         console.error(error);
-        res.status(500).json({ error: `Failed to calculate performance: ${error.message}` });
+        if (error instanceof Error) {
+            res.status(500).json({ error: `Failed to calculate performance: ${error.message}` });
+        } else {
+            res.status(500).json({ error: 'An unknown error occurred while calculating performance.' });
+        }
     }
 });
 
@@ -146,7 +150,11 @@ router.get('/', async (req, res) => {
         const holdings = await calculateHoldings(parseInt(id), asOfDate);
         res.json(holdings);
       } catch (error) {
-        res.status(500).json({ error: 'Failed to calculate holdings' });
+          if (error instanceof Error) {
+              res.status(500).json({ error: `Failed to calculate holdings: ${error.message}` });
+          } else {
+              res.status(500).json({ error: 'An unknown error occurred while calculating holdings.' });
+          }
       }
   });
 
@@ -169,7 +177,11 @@ router.get('/', async (req, res) => {
               res.json(reportData);
           }
       } catch (error) {
-          res.status(500).json({ error: `Failed to generate report data: ${error.message}` });
+          if (error instanceof Error) {
+              res.status(500).json({ error: `Failed to generate report data: ${error.message}` });
+          } else {
+              res.status(500).json({ error: 'An unknown error occurred while generating report data.' });
+          }
       }
   });
 
@@ -179,7 +191,11 @@ router.get('/', async (req, res) => {
           const driftData = await calculateDrift(parseInt(id));
           res.json(driftData);
       } catch (error) {
-          res.status(500).json({ error: `Failed to calculate drift: ${error.message}` });
+          if (error instanceof Error) {
+              res.status(500).json({ error: `Failed to calculate drift: ${error.message}` });
+          } else {
+              res.status(500).json({ error: 'An unknown error occurred while calculating drift.' });
+          }
       }
   });
 
@@ -189,7 +205,11 @@ router.get('/', async (req, res) => {
           const proposal = await generateRebalancingProposal(parseInt(id));
           res.json(proposal);
       } catch (error) {
-          res.status(500).json({ error: `Failed to generate rebalancing proposal: ${error.message}` });
+          if (error instanceof Error) {
+              res.status(500).json({ error: `Failed to generate rebalancing proposal: ${error.message}` });
+          } else {
+              res.status(500).json({ error: 'An unknown error occurred while generating rebalancing proposal.' });
+          }
       }
   });
 

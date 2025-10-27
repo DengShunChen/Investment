@@ -82,10 +82,11 @@ export async function generateRebalancingProposal(portfolioId: number): Promise<
   const rebalancingTrades = driftAnalysis.map(asset => {
     const targetValue = totalMarketValue * asset.targetWeight;
     const tradeValue = targetValue - asset.currentValue;
+    const action: 'BUY' | 'SELL' = tradeValue > 0 ? 'BUY' : 'SELL';
 
     return {
       symbol: asset.symbol,
-      action: tradeValue > 0 ? 'BUY' : 'SELL',
+      action: action,
       tradeValue: Math.abs(tradeValue),
     };
   }).filter(trade => trade.tradeValue > 0.01);

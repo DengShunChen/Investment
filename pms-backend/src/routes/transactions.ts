@@ -29,7 +29,11 @@ router.post('/batch-import/:portfolioId', upload.single('file'), async (req, res
 
     } catch (error) {
         console.error('Batch import failed:', error);
-        res.status(500).json({ error: `Batch import failed: ${error.message}` });
+        if (error instanceof Error) {
+            res.status(500).json({ error: `Batch import failed: ${error.message}` });
+        } else {
+            res.status(500).json({ error: 'An unknown error occurred during batch import.' });
+        }
     }
 });
 
