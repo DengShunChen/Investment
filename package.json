@@ -1,0 +1,12 @@
+{
+  "dependencies": {
+    "@prisma/client": "^6.18.0",
+    "@types/jest": "^30.0.0",
+    "jest": "^30.2.0",
+    "ts-jest": "^29.4.5",
+    "yahoo-finance2": "^3.10.0"
+  },
+  "devDependencies": {
+    "prisma": "^6.18.0"
+  }
+}

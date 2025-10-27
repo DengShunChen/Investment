@@ -1,0 +1,121 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Client {
+  id                    Int              @id @default(autoincrement())
+  name                  String
+  email                 String           @unique
+  riskProfile           String
+  investmentObjectives  String?
+  notes                 String?
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+  portfolios            Portfolio[]
+  interactionLogs       InteractionLog[]
+}
+
+model Portfolio {
+  id              Int             @id @default(autoincrement())
+  name            String
+  description     String?
+  clientId        Int
+  client          Client          @relation(fields: [clientId], references: [id])
+  benchmarkId     Int?
+  benchmark       Benchmark?      @relation(fields: [benchmarkId], references: [id])
+  modelPortfolioId Int?            // Link to an assigned Model Portfolio
+  modelPortfolio  ModelPortfolio? @relation(fields: [modelPortfolioId], references: [id])
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+  transactions    Transaction[]
+}
+
+model Transaction {
+  id              Int            @id @default(autoincrement())
+  portfolioId     Int
+  portfolio       Portfolio      @relation(fields: [portfolioId], references: [id])
+  type            TransactionType
+  assetType       AssetType
+  symbol          String?
+  quantity        Float?
+  price           Float?
+  amount          Float
+  transactionDate DateTime
+  createdAt       DateTime       @default(now())
+  updatedAt       DateTime       @updatedAt
+}
+
+model Benchmark {
+  id           Int                     @id @default(autoincrement())
+  name         String                  @unique
+  description  String?
+  portfolios   Portfolio[]
+  priceHistory BenchmarkPriceHistory[]
+}
+
+model BenchmarkPriceHistory {
+  id          Int       @id @default(autoincrement())
+  benchmarkId Int
+  benchmark   Benchmark @relation(fields: [benchmarkId], references: [id])
+  date        DateTime  @db.Date
+  price       Float
+  createdAt   DateTime  @default(now())
+
+  @@unique([benchmarkId, date])
+}
+
+model InteractionLog {
+  id          Int      @id @default(autoincrement())
+  clientId    Int
+  client      Client   @relation(fields: [clientId], references: [id])
+  date        DateTime
+  type        String
+  summary     String
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+// New model for standard investment strategies
+model ModelPortfolio {
+  id          Int                   @id @default(autoincrement())
+  name        String                @unique // e.g., "Aggressive Growth", "Conservative Income"
+  description String?
+  assets      ModelPortfolioAsset[]
+  portfolios  Portfolio[]
+}
+
+// New model for the target allocation of assets within a ModelPortfolio
+model ModelPortfolioAsset {
+  id               Int            @id @default(autoincrement())
+  modelPortfolioId Int
+  modelPortfolio   ModelPortfolio @relation(fields: [modelPortfolioId], references: [id])
+  symbol           String
+  assetType        AssetType
+  targetPercentage Float          // The target weight for this asset (e.g., 0.6 for 60%)
+
+  @@unique([modelPortfolioId, symbol])
+}
+
+enum TransactionType {
+  BUY
+  SELL
+  DIVIDEND
+  INTEREST
+  CASH_DEPOSIT
+  CASH_WITHDRAWAL
+  FEES
+}
+
+enum AssetType {
+  STOCK
+  FOREX
+  CASH
+}
