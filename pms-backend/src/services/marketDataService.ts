@@ -9,15 +9,37 @@ const API_KEY = process.env.STOCKDATA_API_KEY; // Use environment variable
 
 const BASE_URL = 'https://api.stockdata.org/v1/data/eod';
 
+// --- MOCK DATA FOR TESTING ---
+const mockPriceData: { [symbol: string]: { [date: string]: number } } = {
+  "2330": {
+    "2023-01-03": 450,
+    "2023-08-01": 568,
+  }
+};
+// --- END MOCK DATA ---
+
 async function fetchEodPrice(symbol: string, date: Date): Promise<number> {
+  const dateString = date.toISOString().split('T')[0];
+
   if (!API_KEY) {
-    console.warn('STOCKDATA_API_KEY not found. Using fallback pricing.');
-    return 100 + (symbol.charCodeAt(0) % 10);
+    // Use mock data if available, otherwise use a simple fallback
+    if (mockPriceData[symbol] && mockPriceData[symbol][dateString]) {
+      return mockPriceData[symbol][dateString];
+    }
+    // If no specific mock price, try to find the closest previous date
+    const sortedDates = mockPriceData[symbol] ? Object.keys(mockPriceData[symbol]).sort() : [];
+    let closestPrice = 0; // Default fallback
+    for (const mockDate of sortedDates) {
+        if (new Date(mockDate + 'T00:00:00Z') <= date) {
+            closestPrice = mockPriceData[symbol][mockDate];
+        } else {
+            break;
+        }
+    }
+    return closestPrice;
   }
 
-  const dateString = date.toISOString().split('T')[0];
   const cacheKey = `${symbol}:${dateString}`;
-
   if (priceCache.has(cacheKey)) {
     return priceCache.get(cacheKey)!;
   }
@@ -32,10 +54,8 @@ async function fetchEodPrice(symbol: string, date: Date): Promise<number> {
     const data = await response.json();
 
     if (!data.data || data.data.length === 0) {
-      // If no data for a specific day, it might be a weekend/holiday. Try to get the last known price.
-      // For simplicity, we'll just use fallback here. A real implementation would be more robust.
       console.warn(`No data for ${symbol} on ${dateString}. Using fallback.`);
-      return 100 + (symbol.charCodeAt(0) % 10);
+      return 0;
     }
 
     const price = data.data[0].close;
@@ -44,7 +64,7 @@ async function fetchEodPrice(symbol: string, date: Date): Promise<number> {
 
   } catch (error) {
     console.error('Error fetching from StockData API:', error);
-    return 100 + (symbol.charCodeAt(0) % 10);
+    return 0;
   }
 }
 
@@ -56,11 +76,11 @@ export const marketDataService = {
       case AssetType.CASH:
         return 1.0;
       case AssetType.FOREX:
-        console.warn(`FOREX price lookup not implemented. Using fallback for ${symbol}.`);
-        return 1.1 + (symbol.charCodeAt(0) % 10) / 100;
+        console.warn(`FOREX price lookup not implemented. Returning 1.0 for ${symbol}.`);
+        return 1.0;
       default:
-        console.warn(`Unsupported asset type: ${assetType}. Using fallback.`);
-        return 100.0;
+        console.warn(`Unsupported asset type: ${assetType}. Returning 0.`);
+        return 0.0;
     }
   },
 };

@@ -77,9 +77,22 @@ export async function calculateHoldings(portfolioId: number, asOfDate?: Date): P
   for (const tx of transactions) {
     const { symbol, type, quantity, price, assetType, amount } = tx;
 
-    // All transactions affect the cash balance
-    if (amount != null) {
-      cashBalance += amount;
+    switch (type) {
+      case TransactionType.BUY:
+        if (quantity != null && price != null) {
+          cashBalance -= quantity * price;
+        }
+        break;
+      case TransactionType.SELL:
+        if (quantity != null && price != null) {
+          cashBalance += quantity * price;
+        }
+        break;
+      default:
+        if (amount != null) {
+          cashBalance += amount;
+        }
+        break;
     }
 
     switch (type) {
