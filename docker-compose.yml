@@ -1,0 +1,41 @@
+version: '3.8'
+services:
+  app:
+    build:
+      context: ./pms-backend
+    ports:
+      - "8000:3000"
+    volumes:
+      - ./pms-backend:/usr/src/app
+      - /usr/src/app/node_modules
+    depends_on:
+      - db
+    environment:
+      DATABASE_URL: "postgresql://user:password@db:5432/pms_db?schema=public"
+
+  frontend:
+    build:
+      context: ./pms-frontend
+    ports:
+      - "3000:3000"
+    volumes:
+      - ./pms-frontend:/app
+      - /app/node_modules
+    # Override the Dockerfile's CMD to run in development mode for hot-reloading
+    command: npm run dev
+    depends_on:
+      - app
+
+  db:
+    image: postgres:14-alpine
+    environment:
+      POSTGRES_USER: user
+      POSTGRES_PASSWORD: password
+      POSTGRES_DB: pms_db
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+volumes:
+  postgres_data:
