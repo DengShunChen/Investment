@@ -6,7 +6,7 @@ const nextConfig = {
       {
         source: '/api/:path*',
         // The destination is the backend service in docker-compose
-        destination: 'http://app:3000/:path*',
+        destination: 'http://app:3000/api/:path*',
       },
     ]
   },
