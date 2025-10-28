@@ -2,7 +2,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, usePathname } from 'next/navigation';
 import {
   DesktopOutlined,
   FileOutlined,
@@ -31,6 +31,7 @@ function getItem(
 const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [collapsed, setCollapsed] = useState(false);
   const router = useRouter();
+  const pathname = usePathname();
   const { isAuthenticated, clearAuth, user } = useAuthStore();
   const [hydrated, setHydrated] = useState(false);
 
@@ -39,10 +40,10 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   }, []);
 
   useEffect(() => {
-    if (hydrated && !isAuthenticated) {
+    if (hydrated && !isAuthenticated && pathname !== '/login') {
       router.push('/login');
     }
-  }, [hydrated, isAuthenticated, router]);
+  }, [hydrated, isAuthenticated, router, pathname]);
 
   const {
     token: { colorBgContainer, borderRadiusLG },
@@ -65,6 +66,12 @@ const AppLayout: React.FC<{ children: React.ReactNode }> = ({ children }) => {
           getItem('My Portfolio', '/portfolio', <UserOutlined />),
           getItem('Reports', '/reports', <FileOutlined />),
         ];
+
+  // If we are on the login page, render the children directly without the layout.
+  // This avoids the redirect loop and showing the main layout on the login screen.
+  if (pathname === '/login') {
+    return <>{children}</>;
+  }
 
   if (!hydrated || !isAuthenticated) {
     // This check also handles the initial render before hydration.

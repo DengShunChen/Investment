@@ -5,9 +5,12 @@ services:
       context: ./pms-backend
     ports:
       - "8000:3000"
+      - "5555:5555"
     volumes:
       - ./pms-backend:/usr/src/app
       - /usr/src/app/node_modules
+      - /usr/src/app/dist
+    # command: npm run dev
     depends_on:
       - db
     environment:
